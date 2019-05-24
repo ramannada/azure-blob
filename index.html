@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <!--
+            <label for="container-name">Container name: </label>
+            <input type="text" id="container-name"/> 
+        -->
+        <button id="create-button">Create Container</button>
+        <button id="delete-container-button">Delete Container</button><br/> <br/>
+
+        <input type="file" id="fileinput" />
+        <button id="upload-button">Upload</button>
+        <button id="delete-button">Delete Blob</button><br/>
+        <button id="list-button">List</button><br/>
+        <div id="list-blob"></div><br/>
+        <img src="" id="image"/>
+        <textarea id="responseTextArea" style="width:580px; height:400px;"></textarea>
+    </body>
+    <script src="azure-storage.blob.min.js" charset="utf-8"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+    <script>
+        // Blob-related code goes here
+        const account = {
+            name: 'dicodingstoragelatihan',
+            sas:  '?sv=2018-03-28&ss=bfqt&srt=sco&sp=rwdlacup&se=2019-05-24T10:19:21Z&st=2019-05-24T02:19:21Z&spr=https&sig=MPdqrHqfVdT8aMFt4tOS1evll9%2B08vI2Bf9DT9Z4hew%3D'
+        };
+
+        //blob props
+        const blobUri = 'https://' + account.name + '.blob.core.windows.net';
+        const blobService = AzureStorage.Blob.createBlobServiceWithSas(blobUri, account.sas);
+        const containerName = 'dicoding'
+        //document.getElementById("container-name").value
+
+        //analyze image props
+        var subscriptionKey = "6fc8bb410c2f44409b5f18f237bfdc64";
+        var uriBase = "https://southeastasia.api.cognitive.microsoft.com/vision/v2.0/analyze";
+
+        // Request parameters.
+        var params = {
+            "visualFeatures": "Categories,Description,Color",
+            "details": "",
+            "language": "en",
+        };
+
+        document.getElementById('create-button').addEventListener('click', () => {
+
+            blobService.createContainerIfNotExists(containerName,  (error, container) => {
+                if (error) {
+                    // Handle create container error
+                    alert("failed create container: " + container.name);
+                } else {
+                    alert("success create container: " + container.name);
+                }
+            });
+
+        });
+
+        document.getElementById('upload-button').addEventListener('click', () => {
+
+            const file = document.getElementById('fileinput').files[0];
+
+            blobService.createBlockBlobFromBrowserFile(containerName, 
+                                                        file.name, 
+                                                        file, 
+                                                        (error, result) => {
+                                                            if(error) {
+                                                                console.log(error);
+                                                            } else {
+                                                                var imageUrl = blobService.getUrl(containerName, result.name) + account.sas
+                                                                document.getElementById('image').src = imageUrl;
+
+                                                                $.ajax({
+                                                                    url: uriBase + "?" + $.param(params),
+                                                        
+                                                                    // Request headers.
+                                                                    beforeSend: function(xhrObj){
+                                                                        xhrObj.setRequestHeader("Content-Type","application/json");
+                                                                        xhrObj.setRequestHeader(
+                                                                            "Ocp-Apim-Subscription-Key", subscriptionKey);
+                                                                    },
+                                                        
+                                                                    type: "POST",
+                                                        
+                                                                    // Request body.
+                                                                    data: '{"url": ' + '"' + imageUrl + '"}',
+                                                                })
+                                                        
+                                                                .done(function(data) {
+                                                                    // Show formatted JSON on webpage.
+                                                                    $("#responseTextArea").val(JSON.stringify(data, null, 2));
+                                                                })
+                                                        
+                                                                .fail(function(jqXHR, textStatus, errorThrown) {
+                                                                    // Display error message.
+                                                                    var errorString = (errorThrown === "") ? "Error. " :
+                                                                        errorThrown + " (" + jqXHR.status + "): ";
+                                                                    errorString += (jqXHR.responseText === "") ? "" :
+                                                                        jQuery.parseJSON(jqXHR.responseText).message;
+                                                                    alert(errorString);
+                                                                });
+                                                            }
+                                                        });
+
+        });
+
+        document.getElementById('list-button').addEventListener('click', () => {
+
+            blobService.listBlobsSegmented(containerName, null, (error, results) => {
+                if (error) {
+                    // Handle list blobs error
+                    alert(error.message);
+                } else {
+                    results.entries.forEach(blob => {
+                        console.log(blobService.getUrl(containerName, blob.name) + account.sas);
+                    });
+                }
+            });
+            
+        });
+
+        document.getElementById('delete-button').addEventListener('click', () => {
+            var blobName = document.getElementById('fileinput').files[0].name;
+            blobService.deleteBlobIfExists(containerName, blobName, (error, result) => {
+                if (error) {
+                    // Handle delete blob error
+                    alert(error.message);
+                } else {
+                    alert('Blob ' + blobName + ' deleted successfully');
+                    location.reload(); 
+                }
+            });
+            
+        });
+
+        document.getElementById('delete-container-button').addEventListener('click', () => {
+
+            var blobName = document.getElementById('fileinput').value;
+            blobService.deleteContainerIfExists(containerName, (error, result) => {
+                if (error) {
+                    // Handle delete blob error
+                    alert(error.message);
+                } else {
+                    alert('Container ' + containerName + ' deleted successfully');
+                    location.reload(); 
+                }
+            });
+            
+        });
+
+
+    </script>
+</html>
